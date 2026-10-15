@@ -419,10 +419,22 @@ export const SINGAPORE_BUS_STOPS: BusStop[] = [
     Longitude: 103.9892,
     mrtTransfer: ['CG2'],
     subzone: 'Changi Airport'
+  },
+
+  // Marine Parade / Telok Kurau (LTA Datamall Test Stop 83139)
+  {
+    BusStopCode: '83139',
+    RoadName: 'Telok Kurau Rd',
+    Description: 'Aft Joo Chiat Pl',
+    Latitude: 1.3148,
+    Longitude: 103.9090,
+    mrtTransfer: ['TE26'],
+    subzone: 'Telok Kurau'
   }
 ];
 
 export const SINGAPORE_POPULAR_PRESETS = [
+  { name: '⚡ LTA Stop 83139', lat: 1.3148, lng: 103.9090, code: '83139' },
   { name: 'Orchard & Lucky Plaza', lat: 1.3044, lng: 103.8341, code: '09048' },
   { name: 'Marina Bay Sands / CBD', lat: 1.2842, lng: 103.8591, code: '03539' },
   { name: 'City Hall & Suntec City', lat: 1.2938, lng: 103.8596, code: '03211' },

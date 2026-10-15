@@ -394,6 +394,130 @@ class SingaporeBusEngine {
     });
   }
 
+  // Check server LTA Datamall status
+  public async checkServerLtaStatus(): Promise<{ configured: boolean; endpoint: string; message: string }> {
+    try {
+      const res = await fetch('/api/lta/status');
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Could not query /api/lta/status', e);
+    }
+    return {
+      configured: false,
+      endpoint: 'https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival',
+      message: 'Serverless backend proxy offline'
+    };
+  }
+
+  // Fetch real-time arrivals from serverless LTA DataMall v3 endpoint
+  public async fetchLiveLtaArrivals(
+    busStopCode: string,
+    serviceNo?: string
+  ): Promise<{ live: boolean; services: BusArrivalService[]; error?: string; endpoint?: string; source?: string }> {
+    const cleanStop = busStopCode.trim();
+    const headers: Record<string, string> = {
+      'accept': 'application/json'
+    };
+
+    if (this.customLtaApiKey) {
+      headers['x-account-key'] = this.customLtaApiKey;
+    }
+
+    const url = new URL('/api/lta/bus-arrival', window.location.origin);
+    url.searchParams.set('BusStopCode', cleanStop);
+    if (serviceNo) {
+      url.searchParams.set('ServiceNo', serviceNo.trim());
+    }
+
+    try {
+      const res = await fetch(url.toString(), { headers });
+      const json = await res.json();
+
+      if (!res.ok || !json.live) {
+        console.warn('[LTA Live Feed Fallback]', json.error || 'Live data unavailable');
+        // Fall back gracefully to simulation
+        return {
+          live: false,
+          services: this.getBusStopArrivals(cleanStop),
+          error: json.error || `HTTP ${res.status}`,
+          endpoint: json.endpointUsed
+        };
+      }
+
+      // Convert LTA v3 payload to app structure
+      const rawServices = json.data?.Services || [];
+      const stop = SINGAPORE_BUS_STOPS.find((s) => s.BusStopCode === cleanStop);
+      const defaultLat = stop?.Latitude || 1.3044;
+      const defaultLng = stop?.Longitude || 103.8341;
+
+      const converted: BusArrivalService[] = rawServices.map((raw: any) => {
+        const parseBus = (b: any, visit: number): NextBusInfo | null => {
+          if (!b || !b.EstimatedArrival) return null;
+          const etaMs = Date.parse(b.EstimatedArrival);
+          const nowMs = Date.now();
+          const secondsRemaining = isNaN(etaMs) ? 180 : Math.max(0, Math.round((etaMs - nowMs) / 1000));
+          const lat = parseFloat(b.Latitude) || defaultLat;
+          const lng = parseFloat(b.Longitude) || defaultLng;
+
+          return {
+            EstimatedArrival: b.EstimatedArrival,
+            Latitude: lat,
+            Longitude: lng,
+            VisitNumber: parseInt(b.VisitNumber, 10) || visit,
+            Load: (b.Load as BusLoad) || 'SEA',
+            Feature: b.Feature === 'WAB' ? 'WAB' : '',
+            Type: (b.Type as BusDeckType) || 'SD',
+            VehiclePlate: b.VehiclePlate || `SG${Math.floor(2000 + Math.random() * 7000)}L`,
+            Speed: 35,
+            DistanceMeters: Math.round(secondsRemaining * 8),
+            secondsRemaining
+          };
+        };
+
+        const next1 = parseBus(raw.NextBus, 1);
+        const next2 = parseBus(raw.NextBus2, 2);
+        const next3 = parseBus(raw.NextBus3, 3);
+
+        const route = BUS_ROUTES.find((r) => r.ServiceNo === raw.ServiceNo);
+
+        return {
+          ServiceNo: String(raw.ServiceNo),
+          Operator: (raw.Operator as BusOperator) || 'SBST',
+          NextBus: next1,
+          NextBus2: next2,
+          NextBus3: next3,
+          OriginatingCode: raw.NextBus?.OriginCode || route?.Stops[0]?.BusStopCode,
+          DestinationCode: raw.NextBus?.DestinationCode || route?.Stops[route.Stops.length - 1]?.BusStopCode,
+          DestinationName: route?.Destination || 'Singapore Loop',
+          Category: ['190', '857'].includes(String(raw.ServiceNo)) ? 'Express' : 'Trunk',
+          OperatingHours: {
+            firstBusWeekday: '05:30',
+            lastBusWeekday: '23:45',
+            firstBusWeekend: '05:45',
+            lastBusWeekend: '23:30'
+          },
+          isLiveFeed: true
+        };
+      });
+
+      return {
+        live: true,
+        services: converted,
+        source: 'lta-datamall-v3',
+        endpoint: json.endpoint
+      };
+    } catch (err: any) {
+      console.warn('[LTA Live Feed Network Error]', err);
+      return {
+        live: false,
+        services: this.getBusStopArrivals(cleanStop),
+        error: err.message || 'Network error connecting to proxy'
+      };
+    }
+  }
+
   // Find nearest bus stops from coordinate
   public getNearbyStops(lat: number, lng: number, limit: number = 8): BusStop[] {
     const withDistance = SINGAPORE_BUS_STOPS.map((stop) => {
@@ -444,3 +568,4 @@ class SingaporeBusEngine {
 
 // Global singleton instance
 export const busEngine = new SingaporeBusEngine();
+

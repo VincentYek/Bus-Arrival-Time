@@ -16,6 +16,7 @@ interface HeaderProps {
   isRefreshing: boolean;
   activeAlarmsCount: number;
   busesCount: number;
+  isLiveFeed?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,7 +28,8 @@ export const Header: React.FC<HeaderProps> = ({
   onManualRefresh,
   isRefreshing,
   activeAlarmsCount,
-  busesCount
+  busesCount,
+  isLiveFeed = false
 }) => {
   const [sgTime, setSgTime] = useState<string>('');
 
@@ -66,9 +68,18 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="font-extrabold text-base tracking-tight text-white flex items-center gap-1.5">
                 SG <span className="text-emerald-400">BusPulse</span>
               </span>
-              <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-mono font-bold text-emerald-300">
-                LTA LIVE
-              </span>
+              <button
+                onClick={onOpenSettings}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                  isLiveFeed
+                    ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                    : 'bg-blue-500/15 border border-blue-500/30 text-blue-300 hover:bg-blue-500/25'
+                }`}
+                title={isLiveFeed ? 'Connected to official LTA DataMall v3 API' : 'Click to configure LTA DataMall AccountKey'}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${isLiveFeed ? 'bg-emerald-400 animate-ping' : 'bg-blue-400'}`}></span>
+                {isLiveFeed ? 'LTA v3 LIVE' : 'LTA PROXY READY'}
+              </button>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-slate-400">
               <span className="hidden sm:inline font-mono text-emerald-400 flex items-center gap-1">

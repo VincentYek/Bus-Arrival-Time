@@ -86,6 +86,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {savedSuccess ? <Check className="w-4 h-4" /> : 'Save'}
               </button>
             </div>
+
+            {/* Serverless Endpoint Spec Box */}
+            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5 font-mono text-[11px]">
+              <div className="text-emerald-400 font-bold flex items-center justify-between">
+                <span>Serverless Proxy Endpoint:</span>
+                <span className="text-[10px] text-slate-400">LTA v3 API</span>
+              </div>
+              <div className="text-slate-300 break-all bg-slate-900/90 p-2 rounded-lg border border-slate-800/80">
+                <span className="text-amber-400 font-bold">GET</span> https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival?BusStopCode=83139
+              </div>
+              <div className="text-slate-400 text-[10px] space-y-0.5">
+                <div>Headers: <span className="text-slate-300">AccountKey: &lt;LTA_ACCOUNT_KEY&gt;</span></div>
+                <div>Accept: <span className="text-slate-300">application/json</span></div>
+              </div>
+            </div>
           </div>
 
           {/* Audio Chime Notification */}

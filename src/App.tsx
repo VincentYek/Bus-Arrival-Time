@@ -81,6 +81,10 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
+  // Live LTA DataMall serverless feed status
+  const [isLiveFeed, setIsLiveFeed] = useState(false);
+  const [ltaNotice, setLtaNotice] = useState<string | null>(null);
+
   // User GPS
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
@@ -98,37 +102,52 @@ export default function App() {
     localStorage.setItem('sg_buspulse_alarms', JSON.stringify(alarms));
   }, [alarms]);
 
-  // Refresh arrivals and vehicles
-  const refreshData = useCallback(() => {
+  // Refresh arrivals and vehicles via serverless LTA Datamall proxy
+  const refreshData = useCallback(async () => {
     if (!selectedStop) return;
-    const currentArrivals = busEngine.getBusStopArrivals(selectedStop.BusStopCode);
+
+    // Update live vehicles
     const currentVehicles = busEngine.getLiveVehicles();
-    setArrivals(currentArrivals);
     setLiveBuses(currentVehicles);
 
-    // Check alarms
-    setAlarms((prevAlarms) => {
-      let alarmTriggered = false;
-      const updated = prevAlarms.map((alarm) => {
-        if (alarm.busStopCode === selectedStop.BusStopCode) {
-          const matchService = currentArrivals.find((s) => s.ServiceNo === alarm.serviceNo);
-          if (matchService && matchService.NextBus) {
-            const sec = matchService.NextBus.secondsRemaining ?? 999;
-            if (sec <= 120 && !alarm.notified) {
-              alarmTriggered = true;
-              return { ...alarm, notified: true };
-            }
-          }
-        }
-        return alarm;
-      });
-
-      if (alarmTriggered && soundEnabled) {
-        playArrivalChime();
+    try {
+      // Connect to serverless LTA DataMall proxy
+      const liveRes = await busEngine.fetchLiveLtaArrivals(selectedStop.BusStopCode);
+      setArrivals(liveRes.services);
+      setIsLiveFeed(liveRes.live);
+      if (liveRes.live) {
+        setLtaNotice(`Live feed connected: GET /v3/BusArrival?BusStopCode=${selectedStop.BusStopCode}`);
+      } else {
+        setLtaNotice(null);
       }
 
-      return updated;
-    });
+      // Check alarms
+      setAlarms((prevAlarms) => {
+        let alarmTriggered = false;
+        const updated = prevAlarms.map((alarm) => {
+          if (alarm.busStopCode === selectedStop.BusStopCode) {
+            const matchService = liveRes.services.find((s) => s.ServiceNo === alarm.serviceNo);
+            if (matchService && matchService.NextBus) {
+              const sec = matchService.NextBus.secondsRemaining ?? 999;
+              if (sec <= 120 && !alarm.notified) {
+                alarmTriggered = true;
+                return { ...alarm, notified: true };
+              }
+            }
+          }
+          return alarm;
+        });
+
+        if (alarmTriggered && soundEnabled) {
+          playArrivalChime();
+        }
+
+        return updated;
+      });
+    } catch (e) {
+      console.warn('Failed in refreshData:', e);
+      setArrivals(busEngine.getBusStopArrivals(selectedStop.BusStopCode));
+    }
   }, [selectedStop, soundEnabled]);
 
   // Subscribe to engine ticks
@@ -318,6 +337,7 @@ export default function App() {
         isRefreshing={isRefreshing}
         activeAlarmsCount={alarms.length}
         busesCount={liveBuses.length}
+        isLiveFeed={isLiveFeed}
       />
 
       {/* Main Content Area */}
@@ -437,7 +457,7 @@ export default function App() {
                     type="text"
                     value={serviceFilter}
                     onChange={(e) => setServiceFilter(e.target.value)}
-                    placeholder="Filter service no. (e.g. 65, 190)..."
+                    placeholder="Filter service no. (e.g. 15, 65, 190)..."
                     className="w-full max-w-xs px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-emerald-500 font-medium"
                   />
                   {serviceFilter && (
@@ -451,9 +471,32 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>Auto-updating (1s)</span>
+                  <span className={`w-2 h-2 rounded-full ${isLiveFeed ? 'bg-emerald-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`}></span>
+                  <span>{isLiveFeed ? 'Live LTA v3 API' : 'Auto-updating (1s)'}</span>
                 </div>
+              </div>
+
+              {/* Serverless LTA Feed Banner */}
+              <div className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs transition-colors ${
+                isLiveFeed
+                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                  : 'bg-slate-900/70 border-slate-800/80 text-slate-300'
+              }`}>
+                <div className="flex items-center gap-2 font-mono text-[11px]">
+                  <span className={`w-2 h-2 rounded-full ${isLiveFeed ? 'bg-emerald-400' : 'bg-blue-400'}`}></span>
+                  <span className="font-bold">
+                    {isLiveFeed ? 'LIVE LTA DATAMALL v3' : 'SERVERLESS PROXY READY'}:
+                  </span>
+                  <span className="text-slate-400 truncate max-w-[200px] sm:max-w-xs">
+                    GET /ltaodataservice/v3/BusArrival?BusStopCode={selectedStop.BusStopCode}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 text-[10px] font-bold shrink-0 transition-colors"
+                >
+                  {isLiveFeed ? 'Endpoint Active' : 'API Key Settings'}
+                </button>
               </div>
 
               {/* Arrivals Card Stream */}

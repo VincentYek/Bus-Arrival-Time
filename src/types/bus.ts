@@ -53,11 +53,13 @@ export interface BusArrivalService {
     lastBusWeekend: string;
   };
   LoopDesc?: string;
+  isLiveFeed?: boolean;
 }
 
 export interface BusStopArrivalResponse {
   BusStopCode: string;
   Services: BusArrivalService[];
+  isLiveFeed?: boolean;
   timestamp: number;
 }
 
