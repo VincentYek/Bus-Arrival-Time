@@ -397,12 +397,12 @@ class SingaporeBusEngine {
   // Check server LTA Datamall status
   public async checkServerLtaStatus(): Promise<{ configured: boolean; endpoint: string; message: string }> {
     try {
-      const res = await fetch('/api/lta/status');
+      const res = await fetch('/api/health');
       if (res.ok) {
         return await res.json();
       }
     } catch (e) {
-      console.warn('Could not query /api/lta/status', e);
+      console.warn('Could not query /api/health', e);
     }
     return {
       configured: false,
@@ -425,7 +425,7 @@ class SingaporeBusEngine {
       headers['x-account-key'] = this.customLtaApiKey;
     }
 
-    const url = new URL('/api/lta/bus-arrival', window.location.origin);
+    const url = new URL('/api/busarrival', window.location.origin);
     url.searchParams.set('BusStopCode', cleanStop);
     if (serviceNo) {
       url.searchParams.set('ServiceNo', serviceNo.trim());
